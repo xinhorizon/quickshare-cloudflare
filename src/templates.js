@@ -173,6 +173,23 @@ export function renderIndexPage() {
           </div>
         </div>
       </div>
+      <div style="margin-top:18px;border-top:1px solid var(--border-color);padding-top:16px;display:flex;align-items:center;gap:12px;">
+        <button id="library-toggle-btn" type="button" style="background:none;border:1px solid var(--border-color);color:var(--text-secondary);font-size:13px;padding:6px 14px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px;">
+          <i class="fas fa-book-open" style="font-size:12px;"></i> 存入书库
+        </button>
+        <a href="/library" target="_blank" style="font-size:12px;color:var(--text-secondary);text-decoration:none;opacity:0.6;">查看书库 →</a>
+      </div>
+      <div id="library-fields" style="display:none;margin-top:14px;">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <input id="lib-title" type="text" placeholder="书名（必填）" style="background:var(--bg-input);border:1px solid var(--border-color);color:var(--text-primary);border-radius:6px;padding:8px 12px;font-size:14px;width:100%;" />
+          <input id="lib-author" type="text" placeholder="作者（选填）" style="background:var(--bg-input);border:1px solid var(--border-color);color:var(--text-primary);border-radius:6px;padding:8px 12px;font-size:14px;width:100%;" />
+          <textarea id="lib-desc" placeholder="一句话简介（选填）" rows="2" style="background:var(--bg-input);border:1px solid var(--border-color);color:var(--text-primary);border-radius:6px;padding:8px 12px;font-size:14px;width:100%;resize:vertical;font-family:inherit;"></textarea>
+          <button id="library-save-btn" type="button" style="background:var(--primary);border:none;color:#fff;font-size:13px;padding:8px 18px;border-radius:6px;cursor:pointer;align-self:flex-start;">
+            <i class="fas fa-check"></i> 保存到书库
+          </button>
+          <div id="library-save-msg" style="font-size:12px;color:var(--text-secondary);display:none;"></div>
+        </div>
+      </div>
     </div>
   </div>
   ${appFooter()}
@@ -725,4 +742,82 @@ export function renderErrorPage({ title = '页面未找到', message = '您请�
   ${appFooter()}
 </div>
 ${chromeEnd({ includeMain: false })}`;
+}
+
+export function renderLibraryPage({ books = [] } = {}) {
+  const PALETTES = [
+    ['#7c6ef0', '#4fc3a1'],
+    ['#e08060', '#f0b860'],
+    ['#60a8e0', '#7c6ef0'],
+    ['#4fc3a1', '#60d080'],
+    ['#e060a0', '#7c6ef0'],
+    ['#f0b860', '#e08060'],
+  ];
+  function bookPalette(id) {
+    let n = 0;
+    for (let i = 0; i < id.length; i++) n += id.charCodeAt(i);
+    const [c1, c2] = PALETTES[n % PALETTES.length];
+    return `linear-gradient(90deg, ${c1}, ${c2})`;
+  }
+  function fmtDate(ts) {
+    const d = new Date(ts);
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  const bookCards = books.length === 0
+    ? `<div style="grid-column:1/-1;text-align:center;padding:80px 24px;color:#888899;font-family:'Roboto',sans-serif;">
+         <i class="fas fa-book-open" style="font-size:48px;display:block;margin-bottom:16px;opacity:0.3;"></i>
+         <p>书库还是空的。在 QuickShare 里发布一个笔记，勾选「存入书库」就会出现在这里。</p>
+       </div>`
+    : books.map(b => `
+      <a href="/view/${escapeHtml(b.id)}" target="_blank" style="background:#17171f;border:1px solid #2a2a3a;border-radius:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;text-decoration:none;color:inherit;transition:transform 0.2s,border-color 0.2s,box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='#7c6ef0';this.style.boxShadow='0 12px 40px rgba(124,110,240,0.15)'" onmouseout="this.style.transform='';this.style.borderColor='#2a2a3a';this.style.boxShadow=''">
+        <div style="height:4px;width:100%;background:${bookPalette(b.id)};"></div>
+        <div style="padding:20px 22px 18px;flex:1;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <span style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#4fc3a1;font-family:'Roboto',sans-serif;font-weight:500;">${escapeHtml(b.author || '')}</span>
+            ${b.is_protected ? '<span style="font-size:10px;font-family:\'Roboto\',sans-serif;padding:2px 8px;border-radius:10px;font-weight:500;background:rgba(224,128,96,0.15);color:#e08060;border:1px solid rgba(224,128,96,0.3);">🔒 加密</span>' : ''}
+          </div>
+          <div style="font-size:18px;font-weight:600;line-height:1.4;color:#e8e8f0;">${escapeHtml(b.title || '无标题')}</div>
+          ${b.description ? `<p style="font-size:13px;color:#888899;line-height:1.7;font-family:'Roboto',sans-serif;font-weight:300;flex:1;margin:0;">${escapeHtml(b.description)}</p>` : ''}
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid #2a2a3a;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:11px;color:#888899;font-family:'Roboto',sans-serif;">${fmtDate(b.created_at)}</span>
+            <span style="font-size:11px;color:#7c6ef0;font-family:'Roboto',sans-serif;">阅读 →</span>
+          </div>
+        </div>
+      </a>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>博览书库 | Bolan Library</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0f0f13;color:#e8e8f0;font-family:'Noto Serif SC',serif;min-height:100vh;}
+    .lib-header{text-align:center;padding:56px 24px 40px;border-bottom:1px solid #2a2a3a;position:relative;}
+    .lib-header::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:80px;height:2px;background:linear-gradient(90deg,#7c6ef0,#4fc3a1);border-radius:2px;}
+    .eyebrow{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#4fc3a1;font-family:'Roboto',sans-serif;margin-bottom:16px;}
+    h1{font-size:clamp(28px,5vw,48px);font-weight:700;background:linear-gradient(135deg,#fff 0%,#b8b0f8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px;}
+    .subtitle{font-size:15px;color:#888899;font-family:'Roboto',sans-serif;font-weight:300;}
+    .count{display:inline-block;margin-top:20px;font-size:12px;color:#888899;font-family:'Roboto',sans-serif;background:#1e1e2a;border:1px solid #2a2a3a;border-radius:20px;padding:4px 14px;}
+    .grid{max-width:1100px;margin:48px auto;padding:0 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px;}
+    footer{text-align:center;padding:32px 24px 48px;color:#888899;font-size:12px;font-family:'Roboto',sans-serif;border-top:1px solid #2a2a3a;}
+    footer a{color:#7c6ef0;text-decoration:none;}
+    @media(max-width:480px){.grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+<header class="lib-header">
+  <div class="eyebrow">Bolan · 博览群书</div>
+  <h1>博览书库</h1>
+  <p class="subtitle">把书蒸馏成可对话的思想人格</p>
+  <div class="count">${books.length} 本</div>
+</header>
+<div class="grid">${bookCards}</div>
+<footer>Powered by <a href="/">QuickShare</a> &nbsp;·&nbsp; Bolan Skill</footer>
+</body>
+</html>`;
 }

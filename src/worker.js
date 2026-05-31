@@ -2,6 +2,7 @@ import {
   renderErrorPage,
   renderAdminPage,
   renderIndexPage,
+  renderLibraryPage,
   renderLoginPage,
   renderPasswordPage,
 } from './templates.js';
@@ -77,6 +78,16 @@ async function handleRequest(request, env) {
     return redirect('/login', {
       'Set-Cookie': clearAuthCookie(),
     });
+  }
+
+  if (pathname === '/library' && request.method === 'GET') {
+    return listLibraryPage(env);
+  }
+
+  const libraryMatch = pathname.match(/^\/api\/pages\/([^/]+)\/library$/);
+  if (libraryMatch && request.method === 'POST') {
+    if (!(await isAuthenticated(request, env))) return unauthorizedJson();
+    return saveToLibrary(request, env, libraryMatch[1]);
   }
 
   if (pathname === '/api/pages/create' && request.method === 'POST') {
@@ -487,6 +498,49 @@ async function viewPage(request, env, id) {
   const contentWithTypeInfo = injectCodeTypeMeta(renderedContent, normalized.contentType || page.code_type);
 
   return htmlResponse(contentWithTypeInfo);
+}
+
+async function listLibraryPage(env) {
+  assertBindings(env);
+  const result = await env.DB.prepare(`
+    SELECT id, title, description, author, is_protected, created_at
+    FROM pages
+    WHERE is_library = 1
+    ORDER BY created_at DESC
+  `).all();
+  return htmlResponse(renderLibraryPage({ books: result.results || [] }));
+}
+
+async function saveToLibrary(request, env, id) {
+  assertBindings(env);
+  if (!isValidId(id)) {
+    return jsonResponse({ success: false, error: '页面不存在' }, 404);
+  }
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse({ success: false, error: '请求格式错误' }, 400);
+  }
+
+  const title = String(payload.title || '').trim();
+  if (!title) {
+    return jsonResponse({ success: false, error: '书名不能为空' }, 400);
+  }
+
+  const page = await env.DB.prepare('SELECT id FROM pages WHERE id = ?').bind(id).first();
+  if (!page) {
+    return jsonResponse({ success: false, error: '页面不存在' }, 404);
+  }
+
+  await env.DB.prepare(`
+    UPDATE pages SET is_library = 1, title = ?, description = ?, author = ? WHERE id = ?
+  `)
+    .bind(title, String(payload.description || '').trim() || null, String(payload.author || '').trim() || null, id)
+    .run();
+
+  return jsonResponse({ success: true });
 }
 
 async function getPageRecord(env, id) {

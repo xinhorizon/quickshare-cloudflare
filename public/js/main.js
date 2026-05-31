@@ -562,12 +562,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (data.success) {
           const url = `${window.location.origin}/view/${data.urlId}`;
-          
+          window._currentPageId = data.urlId;
+
           // 格式化 URL 显示
           const formattedUrl = formatUrl(url);
           if (resultUrl) {
             resultUrl.innerHTML = formattedUrl;
-            
+
             // 保存原始 URL 用于复制和预览
             resultUrl.dataset.originalUrl = url;
           }
@@ -812,4 +813,60 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // 初始化完成
   console.log('应用初始化完成');
+
+  // ---- 书库功能 ----
+  const libraryToggleBtn = document.getElementById('library-toggle-btn');
+  const libraryFields = document.getElementById('library-fields');
+  const librarySaveBtn = document.getElementById('library-save-btn');
+  const librarySaveMsg = document.getElementById('library-save-msg');
+
+  if (libraryToggleBtn && libraryFields) {
+    libraryToggleBtn.addEventListener('click', () => {
+      const isOpen = libraryFields.style.display !== 'none';
+      libraryFields.style.display = isOpen ? 'none' : 'block';
+      libraryToggleBtn.style.borderColor = isOpen ? '' : 'var(--primary)';
+    });
+  }
+
+  if (librarySaveBtn) {
+    librarySaveBtn.addEventListener('click', async () => {
+      const pageId = window._currentPageId;
+      const title = (document.getElementById('lib-title') || {}).value?.trim();
+      if (!title) {
+        if (librarySaveMsg) { librarySaveMsg.style.display = 'block'; librarySaveMsg.textContent = '请填写书名'; librarySaveMsg.style.color = '#e08060'; }
+        return;
+      }
+      if (!pageId) {
+        if (librarySaveMsg) { librarySaveMsg.style.display = 'block'; librarySaveMsg.textContent = '请先生成链接'; librarySaveMsg.style.color = '#e08060'; }
+        return;
+      }
+      const author = (document.getElementById('lib-author') || {}).value?.trim() || '';
+      const desc = (document.getElementById('lib-desc') || {}).value?.trim() || '';
+
+      librarySaveBtn.disabled = true;
+      librarySaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
+      try {
+        const resp = await fetch(`/api/pages/${pageId}/library`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, author, description: desc }),
+        });
+        const json = await resp.json();
+        if (json.success) {
+          if (librarySaveMsg) {
+            librarySaveMsg.style.display = 'block';
+            librarySaveMsg.style.color = 'var(--success, #4fc3a1)';
+            librarySaveMsg.innerHTML = '已存入书库 · <a href="/library" target="_blank" style="color:inherit;">查看书库 →</a>';
+          }
+          librarySaveBtn.innerHTML = '<i class="fas fa-check"></i> 已保存';
+        } else {
+          throw new Error(json.error || '保存失败');
+        }
+      } catch (e) {
+        if (librarySaveMsg) { librarySaveMsg.style.display = 'block'; librarySaveMsg.textContent = e.message; librarySaveMsg.style.color = '#e08060'; }
+        librarySaveBtn.disabled = false;
+        librarySaveBtn.innerHTML = '<i class="fas fa-check"></i> 保存到书库';
+      }
+    });
+  }
 });
