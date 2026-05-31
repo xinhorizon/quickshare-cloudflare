@@ -21,28 +21,25 @@ function generateRandomPassword() {
  * @param {string} htmlContent HTML内容
  * @param {boolean} isProtected 是否启用密码保护
  * @param {string} codeType 代码类型（html, markdown, svg, mermaid）
+ * @param {Object} libraryMeta 书库元数据 { title, description, author, isLibrary }
  * @returns {Promise<Object>} 返回生成的URL ID和密码
  */
-async function createPage(htmlContent, isProtected = false, codeType = 'html') {
+async function createPage(htmlContent, isProtected = false, codeType = 'html', libraryMeta = {}) {
   try {
-    // 生成时间戳
     const timestamp = new Date().getTime().toString();
-    
-    // 生成短ID (7位)
     const hash = CryptoJS.MD5(htmlContent + timestamp).toString();
     const urlId = hash.substring(0, 7);
-    
-    // 无论是否启用保护，都生成密码
     const password = generateRandomPassword();
     console.log('生成密码:', password);
-    
-    // 保存到数据库
-    // isProtected决定是否需要密码才能访问
+
+    const { title = null, description = null, author = null, isLibrary = false } = libraryMeta;
+
     await run(
-      'INSERT INTO pages (id, html_content, created_at, password, is_protected, code_type) VALUES (?, ?, ?, ?, ?, ?)',
-      [urlId, htmlContent, Date.now(), password, isProtected ? 1 : 0, codeType]
+      'INSERT INTO pages (id, html_content, created_at, password, is_protected, code_type, title, description, author, is_library) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [urlId, htmlContent, Date.now(), password, isProtected ? 1 : 0, codeType,
+       title, description, author, isLibrary ? 1 : 0]
     );
-    
+
     return { urlId, password };
   } catch (error) {
     console.error('创建页面错误:', error);
@@ -81,8 +78,24 @@ async function getRecentPages(limit = 10) {
   }
 }
 
+/**
+ * 获取书库中所有公开页面
+ * @returns {Promise<Array>}
+ */
+async function getLibraryPages() {
+  try {
+    return await query(
+      'SELECT id, title, description, author, is_protected, created_at FROM pages WHERE is_library = 1 ORDER BY created_at DESC'
+    );
+  } catch (error) {
+    console.error('获取书库页面错误:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   createPage,
   getPageById,
-  getRecentPages
+  getRecentPages,
+  getLibraryPages,
 };

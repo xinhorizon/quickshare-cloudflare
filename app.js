@@ -167,12 +167,12 @@ app.get('/logout', (req, res) => {
 // 将 API 路由分为两部分：需要认证的和不需要认证的
 
 // 导入路由处理函数
-const { createPage, getPageById, getRecentPages } = require('./models/pages');
+const { createPage, getPageById, getRecentPages, getLibraryPages } = require('./models/pages');
 
 // 创建页面的 API 需要认证
 app.post('/api/pages/create', isAuthenticated, async (req, res) => {
   try {
-    const { htmlContent, isProtected } = req.body;
+    const { htmlContent, isProtected, title, description, author, isLibrary } = req.body;
 
     if (!htmlContent) {
       return res.status(400).json({
@@ -181,7 +181,12 @@ app.post('/api/pages/create', isAuthenticated, async (req, res) => {
       });
     }
 
-    const result = await createPage(htmlContent, isProtected);
+    const result = await createPage(htmlContent, isProtected, 'html', {
+      title: title || null,
+      description: description || null,
+      author: author || null,
+      isLibrary: !!isLibrary,
+    });
 
     res.json({
       success: true,
@@ -200,6 +205,30 @@ app.post('/api/pages/create', isAuthenticated, async (req, res) => {
 
 // 其他 API 不需要认证
 app.use('/api/pages', pagesRoutes);
+
+// 保存书库元数据 - 需要认证
+app.post('/api/pages/:id/library', isAuthenticated, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, author } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, error: '书名不能为空' });
+    }
+    const page = await getPageById(id);
+    if (!page) {
+      return res.status(404).json({ success: false, error: '页面不存在' });
+    }
+    const { run } = require('./models/db');
+    await run(
+      'UPDATE pages SET is_library = 1, title = ?, description = ?, author = ? WHERE id = ?',
+      [title.trim(), (description || '').trim() || null, (author || '').trim() || null, id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('保存书库元数据错误:', error);
+    res.status(500).json({ success: false, error: '服务器错误' });
+  }
+});
 
 // 密码验证路由 - 用于AJAX验证
 app.get('/validate-password/:id', async (req, res) => {
@@ -231,6 +260,17 @@ app.get('/validate-password/:id', async (req, res) => {
 // 首页路由 - 需要登录才能访问
 app.get('/', isAuthenticated, (req, res) => {
   res.render('index', { title: 'HTML-Go | 分享 HTML 代码的简单方式' });
+});
+
+// 书库路由 - 公开访问，无需登录
+app.get('/library', async (req, res) => {
+  try {
+    const books = await getLibraryPages();
+    res.render('library', { title: '博览书库 | Bolan Library', books });
+  } catch (error) {
+    console.error('书库页面错误:', error);
+    res.status(500).render('error', { title: '服务器错误', message: '加载书库时发生错误' });
+  }
 });
 
 // 导入代码类型检测和内容渲染工具

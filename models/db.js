@@ -30,10 +30,24 @@ function initDatabase() {
         )
       `, (err) => {
         if (err) {
-          reject(err);
-        } else {
-          console.log('数据库初始化成功');
-          resolve();
+          return reject(err);
+        }
+        // 添加书库相关列（已存在时忽略错误）
+        const alterCols = [
+          `ALTER TABLE pages ADD COLUMN title TEXT`,
+          `ALTER TABLE pages ADD COLUMN description TEXT`,
+          `ALTER TABLE pages ADD COLUMN author TEXT`,
+          `ALTER TABLE pages ADD COLUMN is_library INTEGER NOT NULL DEFAULT 0`,
+        ];
+        let done = 0;
+        for (const sql of alterCols) {
+          db.run(sql, () => {
+            done++;
+            if (done === alterCols.length) {
+              console.log('数据库初始化成功');
+              resolve();
+            }
+          });
         }
       });
     });
